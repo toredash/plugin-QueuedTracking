@@ -144,3 +144,29 @@ __Are there any known issues?__
  either an image or a 204 HTTP response code in case the parameter `send_image=0` is sent.
 * By design this plugin can delay the insertion of tracking requests causing real time plugins to not show the actual data since
  under load tracking requests may take a while until they are replayed.
+ 
+ __Can QueuedTracking work with AWS RDS Serverless databases?__
+
+Yes, but special care must be done when configuring QueuedTracking. By default, the configuration of QueuedTracking is stored in the database. This means that every time QueuedTracking is instructed to process the queue (either by processDuringTrackingRequest=true or ./console queuedtracking:process), the plugin must ask the database for its configuration. This does not work well with serverless, if you aim to reduce cost by scaling down automatically to 0 capacity.
+
+You can configure QueuedTracking statically via config.ini.php, by adding a `[QueuedTracking]` section, example:
+```
+[QueuedTracking]
+backend = "redis"
+redisHost = "HostnameOfRedisInstance"
+redisPort = 6379
+redisDatabase = 2
+redisPassword = ""
+queueEnabled = true
+numQueueWorkers = 4
+processDuringTrackingRequest = false
+numRequestsToProcess = 25
+useSentinelBackend = false
+sentinelMasterName = "HardCodedIn config.ini.php"
+```
+
+Variables that can be configured : https://github.com/matomo-org/plugin-QueuedTracking/blob/master/SystemSettings.php
+
+Once configured, QueuedTracking is able to inspect its queue, without touching the database. This enables you configured AWS RDS Serverless to 0 capacity when there is no tracking requests to process. Once there is requests to track, QueuedTracking will attempt to contact AWS RDS, which will use 10-30s to start the RDS instance, and start processing tracking requests in the queue.
+
+Note; when configuration is defined in config.ini.php, you are unable to change in via the browser UI.
